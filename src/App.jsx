@@ -7,12 +7,25 @@ export default function App() {
   const [students, setStudents] = useState([]);
   const [form, setForm] = useState({ name: "", age: "", subject: "", class: "" });
   const [editingId, setEditingId] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch(API)
-      .then((r) => r.json())
-      .then(setStudents)
-      .catch((err) => console.error("Error fetching data:", err));
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch(API);
+        if (!res.ok) throw new Error("Failed to fetch data");
+        const data = await res.json();
+        setStudents(data);
+      } catch (err) {
+        console.error("Error fetching data:", err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
   }, []);
 
   const handleChange = (e) => {
@@ -21,25 +34,28 @@ export default function App() {
   };
 
   const handleSubmit = async () => {
-    if (editingId) {
-      await fetch(`${API}/${editingId}`, {
-        method: "PUT",
+    try {
+      setLoading(true);
+      const method = editingId ? "PUT" : "POST";
+      const url = editingId ? `${API}/${editingId}` : API;
+
+      await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-    } else {
-      await fetch(API, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
+
+      const data = await fetch(API).then((r) => r.json());
+      setStudents(data);
+
+      setForm({ name: "", age: "", subject: "", class: "" });
+      setEditingId(null);
+    } catch (err) {
+      console.error("Error submitting data:", err);
+      setError("Failed to save data");
+    } finally {
+      setLoading(false);
     }
-
-    const data = await fetch(API).then((r) => r.json());
-    setStudents(data);
-
-    setForm({ name: "", age: "", subject: "", class: "" });
-    setEditingId(null);
   };
 
   const handleEdit = (student) => {
@@ -53,10 +69,34 @@ export default function App() {
   };
 
   const handleDelete = async (id) => {
-    await fetch(`${API}/${id}`, { method: "DELETE" });
-    const data = await fetch(API).then((r) => r.json());
-    setStudents(data);
+    try {
+      setLoading(true);
+      await fetch(`${API}/${id}`, { method: "DELETE" });
+      const data = await fetch(API).then((r) => r.json());
+      setStudents(data);
+    } catch (err) {
+      console.error("Error deleting data:", err);
+      setError("Failed to delete data");
+    } finally {
+      setLoading(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="loader"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center text-red-500 mt-10">
+        <h2>Error: {error}</h2>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4">
@@ -81,7 +121,7 @@ export default function App() {
             </div>
             <div
               className="table-cell border border-red-500 p-2 cursor-pointer"
-              onClick={() => handleDelete(s._id || s.id)}     
+              onClick={() => handleDelete(s._id || s.id)}
             >
               Delete
             </div>
